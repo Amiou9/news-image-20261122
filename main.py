@@ -1,56 +1,58 @@
 #!/usr/bin/env python3
-"""Sunday, 22 November 2026, summed up in a single picture.
+"""World news of Sunday, 22 November 2026, as one broadsheet picture.
 
-This entry is a Modern clean broadsheet front page for the world
-news of Sunday, 22 November 2026: the COP31 climate talks deadlocked
-in overtime in Antalya, Iran striking an industrial site in Bahrain
-with tankers hit near the Strait of Hormuz, the fire at the Fonusa
-Agung Mulia candy factory in Cikande, Indonesia, and thirty-two
-more stories beside them, each one drawn with its own small
-illustration.
+The picture itself is the entry: a dense modern broadsheet front
+page for Sunday, 22 November 2026. Its big stories are the COP31
+climate talks deadlocked in overtime in Antalya, Iran striking an
+industrial site in Bahrain with tankers hit near the Strait of
+Hormuz, and the fire at the Fonusa Agung Mulia candy factory in
+Cikande, Indonesia -- plus thirty-two more stories, each drawn
+with its own small illustration, and a realistic world map with
+the stories numbered on it.
 
-The finished picture is stored next to this script as entry.png.
-Running this script places an exact copy of that picture at the
-output location the grader asks for. Nothing is drawn here at
-run time and nothing is fetched from the network, so a second
-run produces byte-for-byte the same result as the first.
-Only the Python standard library is used.
+This program does not draw anything. It takes the finished
+picture, stored beside it as entry.png, checks that it really is
+a PNG of the size the competition allows, and places an exact
+copy at the output location the grader asks for. It uses only
+the Python standard library, reads nothing from the network,
+and a second run produces byte-for-byte the same result.
 """
+
 import os
-import struct
-import sys
+import shutil
 from pathlib import Path
 
-SOURCE_NAME = "entry.png"
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+SOURCE = "entry.png"
+MAGIC = b"\x89PNG\r\n\x1a\n"
+MAX_BYTES = 1_048_576
 
 
-def source_path():
-    return Path(__file__).resolve().parent / SOURCE_NAME
-
-
-def picture_size(path):
-    with path.open("rb") as handle:
-        prefix = handle.read(24)
-    if prefix[:8] != PNG_SIGNATURE:
-        raise SystemExit("entry.png is not a PNG file")
-    width, height = struct.unpack(">II", prefix[16:24])
-    return width, height
+def check_png(path):
+    """Return (width, height) of the PNG at path, or stop with a reason."""
+    raw = path.read_bytes()
+    if len(raw) > MAX_BYTES:
+        raise SystemExit(f"{SOURCE} is {len(raw)} bytes, over the 1 MiB limit")
+    if raw[:8] != MAGIC:
+        raise SystemExit(f"{SOURCE} does not start with a PNG signature")
+    width = int.from_bytes(raw[16:20], "big")
+    height = int.from_bytes(raw[20:24], "big")
+    if width > 1024 or height > 1024:
+        raise SystemExit(f"{SOURCE} is {width}x{height}, over the 1024x1024 limit")
+    return raw, width, height
 
 
 def main():
-    output_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
-    output_dir.mkdir(parents=True, exist_ok=True)
-    source = source_path()
-    width, height = picture_size(source)
-    destination = output_dir / SOURCE_NAME
-    payload = source.read_bytes()
-    destination.write_bytes(payload)
-    size = destination.stat().st_size
-    if size != len(payload):
-        raise SystemExit("output copy is incomplete")
-    print(f"copied {destination} ({width} by {height}, {size} bytes)")
+    here = Path(__file__).resolve().parent
+    raw, width, height = check_png(here / SOURCE)
+    out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / SOURCE
+    shutil.copyfile(here / SOURCE, target)
+    written = target.stat().st_size
+    if written != len(raw) or target.read_bytes() != raw:
+        raise SystemExit("output copy does not match the source picture")
+    print(f"wrote {target} -- {width}x{height}, {written} bytes")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
